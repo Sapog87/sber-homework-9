@@ -3,12 +3,13 @@ package org.sber;
 import java.util.*;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 
 public class Streams<T> {
-    private final Collection<? extends T> src;
+    private final Supplier<Collection<? extends T>> supplier;
 
-    private Streams(Collection<? extends T> src) {
-        this.src = src;
+    public Streams(Supplier<Collection<? extends T>> supplier) {
+        this.supplier = supplier;
     }
 
     /**
@@ -17,7 +18,7 @@ public class Streams<T> {
      */
     public static <T> Streams<T> of(Collection<? extends T> src) {
         Objects.requireNonNull(src);
-        return new Streams<>(src);
+        return new Streams<>(() -> src);
     }
 
     /**
@@ -26,13 +27,16 @@ public class Streams<T> {
      */
     public Streams<T> filter(Predicate<? super T> pred) {
         Objects.requireNonNull(pred);
-        Collection<T> dst = new ArrayList<>();
-        for (T t : src) {
-            if (pred.test(t)) {
-                dst.add(t);
+        return new Streams<>(() -> {
+            Collection<? extends T> src = supplier.get();
+            Collection<T> dst = new ArrayList<>();
+            for (T t : src) {
+                if (pred.test(t)) {
+                    dst.add(t);
+                }
             }
-        }
-        return new Streams<>(dst);
+            return dst;
+        });
     }
 
     /**
@@ -41,11 +45,14 @@ public class Streams<T> {
      */
     public <R> Streams<R> transform(Function<? super T, ? extends R> func) {
         Objects.requireNonNull(func);
-        Collection<R> dst = new ArrayList<>(src.size());
-        for (T t : src) {
-            dst.add(func.apply(t));
-        }
-        return new Streams<>(dst);
+        return new Streams<>(() -> {
+            Collection<? extends T> src = supplier.get();
+            Collection<R> dst = new ArrayList<>(src.size());
+            for (T t : src) {
+                dst.add(func.apply(t));
+            }
+            return dst;
+        });
     }
 
     /**
@@ -57,6 +64,7 @@ public class Streams<T> {
                                   Function<? super T, ? extends V> valueMapper) {
         Objects.requireNonNull(keyMapper);
         Objects.requireNonNull(valueMapper);
+        Collection<? extends T> src = supplier.get();
         Map<K, V> map = new HashMap<>();
         for (T t : src) {
             K key = keyMapper.apply(t);
